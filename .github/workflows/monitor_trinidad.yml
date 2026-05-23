@@ -1,0 +1,51 @@
+name: Monitor MP - Trinidad
+
+on:
+  schedule:
+    # 11:00 UTC = 8:00 hora Chile en horario de verano
+    # 12:00 UTC = 8:00 hora Chile en horario de invierno
+    # Ejecuta a las dos horas; seen.json evita correos duplicados.
+    - cron: '0 11 * * 1-5'
+    - cron: '0 12 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: write   # Para commitear seen.json
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run monitor
+        env:
+          MP_TICKET: ${{ secrets.MP_TICKET }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          NOTIFY_TO: ${{ secrets.NOTIFY_TO }}
+          NOTIFY_ALWAYS: '0'   # cambia a '1' para recibir correo siempre
+        run: python monitor_trinidad.py
+
+      - name: Commit seen.json if changed
+        run: |
+          if [[ -n "$(git status --porcelain seen.json)" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add seen.json
+            git commit -m "Update seen.json [skip ci]"
+            git push
+          else
+            echo "seen.json sin cambios"
+          fi
